@@ -3,11 +3,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { WikiGeoResult } from '@/types'
 import { fetchCategoriesForPages } from '@/lib/wikipedia'
-import { cleanCategoryName } from '@/lib/utils'
 
 const MAX_CATEGORIES_SHOWN = 5
 
-/** Wikipedia meta/maintenance categories we don't show as filters (not real "topics"). */
+/** Wikipedia maintenance category prefixes — these are universal across all of Wikipedia. */
 const META_CATEGORY_PREFIXES = [
   'Articles with ',
   'All articles with ',
@@ -32,7 +31,6 @@ const META_CATEGORY_PREFIXES = [
   'Lists of ',
 ]
 
-/** Substrings that indicate meta/maintenance categories (same kind of thing – not content topics). */
 const META_CATEGORY_SUBSTRINGS = [
   'unsourced',
   'additional references',
@@ -61,6 +59,39 @@ function isMetaCategory(name: string): boolean {
   if (META_CATEGORY_PREFIXES.some((p) => name.startsWith(p))) return true
   return META_CATEGORY_SUBSTRINGS.some((s) => n.includes(s))
 }
+
+/** Words that carry no meaningful identity in a category name. */
+const STOP_WORDS = new Set([
+  'in', 'of', 'the', 'a', 'an', 'and', 'or', 'with', 'for', 'by', 'at',
+  'to', 'from', 'on', 'as', 'its', 'their', 'associated', 'affiliated',
+  'related', 'buildings', 'structures', 'establishments', 'institutions',
+  'list', 'lists', 'former', 'history', 'historic', 'historical',
+])
+
+/** Extract the meaningful words from a category name. */
+function getTokens(name: string): Set<string> {
+  return new Set(
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter((t) => t.length > 1 && !STOP_WORDS.has(t))
+  )
+}
+
+/**
+ * Jaccard similarity: size of intersection divided by size of union.
+ * Returns a value between 0 (nothing in common) and 1 (identical).
+ */
+function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 && b.size === 0) return 1
+  let intersection = 0
+  for (const t of a) if (b.has(t)) intersection++
+  return intersection / (a.size + b.size - intersection)
+}
+
+/** Two categories are considered duplicates if 60%+ of their meaningful words overlap. */
+const DUPLICATE_THRESHOLD = 0.6
 
 export function useArticleCategories(articles: WikiGeoResult[]) {
   const [categoriesByPageId, setCategoriesByPageId] = useState<Map<number, string[]>>(new Map())
@@ -108,27 +139,21 @@ export function useArticleCategories(articles: WikiGeoResult[]) {
   })
   const sortedEntries = [...categoryCounts.entries()].sort((a, b) => b[1] - a[1])
   const uniqueCategories: string[] = []
-  const usedLabels = new Set<string>()
+  const usedTokenSets: Set<string>[] = []
 
   for (const [name] of sortedEntries) {
     if (uniqueCategories.length >= MAX_CATEGORIES_SHOWN) break
 
-    const label = cleanCategoryName(name)
-    if (!label || usedLabels.has(label)) continue
+    const tokens = getTokens(name)
+    if (tokens.size === 0) continue
 
-    // Look for redundancy: if this category's label contains (or is contained by)
-    // a label we've already selected, skip it to maintain variety.
-    const isRedundant = Array.from(usedLabels).some((existingLabel) => {
-      const l1 = label.toLowerCase()
-      const l2 = existingLabel.toLowerCase()
-      const shorter = l1.length < l2.length ? l1 : l2
-      const longer = l1.length < l2.length ? l2 : l1
-      return shorter.length > 3 && longer.includes(shorter)
-    })
+    const isDuplicate = usedTokenSets.some(
+      (existing) => jaccardSimilarity(tokens, existing) >= DUPLICATE_THRESHOLD
+    )
 
-    if (!isRedundant) {
+    if (!isDuplicate) {
       uniqueCategories.push(name)
-      usedLabels.add(label)
+      usedTokenSets.push(tokens)
     }
   }
 
