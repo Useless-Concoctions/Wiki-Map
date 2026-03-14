@@ -3,6 +3,13 @@ export interface Coords {
   lng: number
 }
 
+export interface MapBounds {
+  north: number
+  south: number
+  east: number
+  west: number
+}
+
 export type Radius = 500 | 1000 | 2000
 
 export interface WikiGeoResult {
