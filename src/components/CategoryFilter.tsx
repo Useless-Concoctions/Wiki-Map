@@ -1,39 +1,31 @@
 'use client'
-import { cleanCategoryName } from '@/lib/utils'
+
+import { EMOJI_FILTERS, EmojiFilter } from '@/lib/emojiFilters'
 
 interface Props {
-  categories: string[]
   selected: string | null
-  onChange: (category: string | null) => void
-  loading?: boolean
+  onChange: (filterId: string | null) => void
 }
 
-/** Optional shortening: strip redundant phrases and suffixes. */
-function displayLabel(name: string): string {
-  return cleanCategoryName(name) || name
-}
-
-export default function CategoryFilter({ categories, selected, onChange, loading }: Props) {
-  if (categories.length === 0 && !loading) return null
-
+export default function CategoryFilter({ selected, onChange }: Props) {
   return (
-    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth pointer-events-none">
-      {categories.map((cat) => {
-        const isSelected = selected === cat
+    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth">
+      {EMOJI_FILTERS.map((filter: EmojiFilter) => {
+        const isSelected = selected === filter.id
         return (
           <button
-            key={cat}
+            key={filter.id}
             type="button"
-            onClick={() => onChange(isSelected ? null : cat)}
-            disabled={loading}
-            className={`shrink-0 px-4 h-10 flex items-center rounded-full text-xs font-bold transition-all border whitespace-nowrap pointer-events-auto ${
+            onClick={() => onChange(isSelected ? null : filter.id)}
+            title={filter.label}
+            className={`shrink-0 h-10 px-3.5 flex items-center gap-1.5 rounded-full text-sm font-semibold transition-all border shadow-md whitespace-nowrap pointer-events-auto ${
               isSelected
-                ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200'
-                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 shadow-md'
-            } ${loading ? 'opacity-60 cursor-not-allowed' : ''}`}
-            title={cat}
+                ? 'bg-blue-600 text-white border-blue-600 shadow-blue-200'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+            }`}
           >
-            {displayLabel(cat)}
+            <span className="text-base leading-none">{filter.emoji}</span>
+            <span className="text-xs">{filter.label}</span>
           </button>
         )
       })}

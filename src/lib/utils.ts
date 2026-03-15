@@ -1,17 +1,11 @@
 /**
- * Cleans a Wikipedia category name by stripping redundant phrases, locations, and suffixes.
- * Useful for creating concise UI labels and for identifying redundant categories.
+ * Cleans a Wikipedia category name for display as a UI label.
+ * Strips location suffixes so labels stay concise (e.g. "Museums in Toronto" → "Museums").
  */
 export function cleanCategoryName(name: string): string {
   if (!name) return ''
-  
   return name
-    .replace(/\s+in\s+.*$/, '') // "Museums in Toronto" -> "Museums"
-    .replace(/\s+buildings and structures$/, '')
-    .replace(/\s+St\.\s+George$/, '')
-    .replace(/\s+campuses$/, '')
-    .replace(/\s+landmarks$/, '')
-    .replace(/\s+affiliated with (the )?/, ' ')
+    .replace(/\s+in\s+.*$/, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
