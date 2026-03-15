@@ -10,6 +10,7 @@ import { useGeolocation } from '@/hooks/useGeolocation'
 import { useWikiArticles } from '@/hooks/useWikiArticles'
 import { useArticleCategories } from '@/hooks/useArticleCategories'
 import { searchArticles } from '@/lib/wikipedia'
+import { EMOJI_FILTERS, articleMatchesFilter } from '@/lib/emojiFilters'
 import ArticlePanel from './ArticlePanel'
 import CategoryFilter from './CategoryFilter'
 
@@ -171,7 +172,7 @@ export default function MapInner() {
   }, [])
   const bounds = viewportBounds ?? DEFAULT_BOUNDS
   const { articles, loading: wikiLoading } = useWikiArticles(bounds)
-  const { categoriesByPageId, uniqueCategories, loading: categoriesLoading } = useArticleCategories(articles)
+  const { categoriesByPageId } = useArticleCategories(articles)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [selectedArticle, setSelectedArticle] = useState<WikiGeoResult | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -200,10 +201,15 @@ export default function MapInner() {
     ? articles
     : articles.filter(a => a.title.toLowerCase().includes(searchQuery.toLowerCase()))
 
+  const activeEmojiFilter = selectedCategory == null ? null : EMOJI_FILTERS.find((f) => f.id === selectedCategory) ?? null
+
   const categoryFiltered =
-    selectedCategory == null
+    activeEmojiFilter == null
       ? filteredBySearch
-      : filteredBySearch.filter((a) => categoriesByPageId.get(a.pageid)?.includes(selectedCategory))
+      : filteredBySearch.filter((a) => {
+          const cats = categoriesByPageId.get(a.pageid) ?? []
+          return articleMatchesFilter(cats, activeEmojiFilter)
+        })
   // Prioritize by distance (closest first), then cap by zoom so zoom out = less detail
   const maxPins = getMaxPinsForZoom(viewportZoom)
   
@@ -349,10 +355,8 @@ export default function MapInner() {
 
         <div className="flex-1 flex items-center gap-2 pointer-events-auto overflow-x-auto no-scrollbar py-1">
           <CategoryFilter
-            categories={uniqueCategories}
             selected={selectedCategory}
             onChange={setSelectedCategory}
-            loading={categoriesLoading}
           />
         </div>
       </div>
