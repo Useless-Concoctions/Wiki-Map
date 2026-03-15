@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-03-14
+
+### Added
+- **Hover Tooltips**: Hovering over any pin now shows the article title — no more clicking blind.
+- **Article Importance Ranking**: Pins are now ranked by Wikipedia article length (a proxy for importance) at low zoom levels, so major landmarks surface over stubs.
+- **Geographic Pin Spread**: At zoom < 14, the viewport is split into quadrants for fetching and a 7×7 grid for selection, ensuring pins are distributed across the full visible area instead of clustering in the densest neighbourhood.
+- **Auto-invalidating Cache**: Cache keys are versioned so stale data is automatically ignored after fetch strategy changes — no manual clearing needed.
+
+### Changed
+- **Search Bar Width**: Aligned to match the article panel (312px) for visual consistency.
+- **Zoomed-out Fallback Radius**: Increased from 10km to 50km so the fallback radius search covers the full visible area when bounds are too large for the API.
+
+### Fixed
+- **Downtown Clustering**: Resolved an issue where all pins appeared in a small central cluster when zoomed out, caused by Wikipedia's geosearch returning only articles nearest the viewport center.
+
+### Removed
+- **"Wikipedia Article" Label**: Removed the redundant static subtitle from the article detail panel.
+- **RadiusControl Component**: Deleted unused file; the map zoom handles this naturally.
+
 ## [0.4.0] - 2026-03-14
 
 ### Added

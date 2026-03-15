@@ -1,36 +1,29 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Wiki Map
 
-## Getting Started
+An interactive map that surfaces nearby Wikipedia articles as explorable pins — powered by geolocation and the Wikipedia API.
 
-First, run the development server:
+## Problem
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Wikipedia has articles about nearly every place on earth, but there's no good way to discover them spatially. Wiki Map turns your surroundings into an explorable layer of knowledge — walk through a neighbourhood and see what stories are attached to it.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Live Article Pins**: Wikipedia articles near you rendered as map pins, updated as you pan and zoom.
+- **Hover Tooltips**: See article titles at a glance without clicking.
+- **Emoji Category Filters**: Filter pins by type — Education, Nature, Health, Transport, and more.
+- **Global Search**: Search any Wikipedia topic and fly to it on the map.
+- **Smart Pin Spread**: Geographic grid selection ensures pins cover the full visible area, not just the densest neighbourhood.
+- **Importance Ranking**: At low zoom, longer (more significant) articles are prioritized over stubs.
+- **Article Preview**: Tap any pin for a summary card with thumbnail and link to the full article.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Stack
 
-## Learn More
+- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS 4
+- **Map**: Leaflet + React-Leaflet, CartoDB Light tiles
+- **Data**: Wikipedia REST API + Action API
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- [Changelog](./CHANGELOG.md)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Created by [Ryan Hanna](https://github.com/ryanphanna)
