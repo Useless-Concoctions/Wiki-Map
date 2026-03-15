@@ -44,11 +44,11 @@ export async function fetchArticlesInBounds(
   const data = await res.json()
   
   if (data.error?.code === 'toobig') {
-    // Falls back to a centered search if the bounding box is too large
-    console.warn('Bounding box too large, falling back to centered search')
+    // Bounds are too large for Wikipedia's API — fall back to a radius search.
+    // Use 50km so the search covers the full visible area even if the center is over water.
     const centerLat = (north + south) / 2
     const centerLng = (east + west) / 2
-    return fetchNearbyArticles(centerLat, centerLng, 10000)
+    return fetchNearbyArticles(centerLat, centerLng, 50000)
   }
   
   return data.query?.geosearch ?? []
@@ -108,15 +108,16 @@ export async function searchArticles(query: string): Promise<WikiGeoResult[]> {
 
 export async function fetchCategoriesForPages(
   pageIds: number[]
-): Promise<Map<number, string[]>> {
-  if (pageIds.length === 0) return new Map()
+): Promise<{ categories: Map<number, string[]>; lengths: Map<number, number> }> {
+  if (pageIds.length === 0) return { categories: new Map(), lengths: new Map() }
   const limit = 50
-  const result = new Map<number, string[]>()
+  const categories = new Map<number, string[]>()
+  const lengths = new Map<number, number>()
   for (let i = 0; i < pageIds.length; i += limit) {
     const batch = pageIds.slice(i, i + limit)
     const url = new URL('https://en.wikipedia.org/w/api.php')
     url.searchParams.set('action', 'query')
-    url.searchParams.set('prop', 'categories')
+    url.searchParams.set('prop', 'categories|info')
     url.searchParams.set('pageids', batch.join('|'))
     url.searchParams.set('cllimit', '500')
     url.searchParams.set('format', 'json')
@@ -128,7 +129,7 @@ export async function fetchCategoriesForPages(
     for (const pageId of batch) {
       const page = pages[String(pageId)]
       const cats = Array.isArray(page?.categories) ? page.categories : []
-      result.set(
+      categories.set(
         pageId,
         cats.map((c: { title: string }) =>
           c.title.startsWith(CATEGORY_PREFIX)
@@ -136,7 +137,8 @@ export async function fetchCategoriesForPages(
             : c.title
         )
       )
+      if (typeof page?.length === 'number') lengths.set(pageId, page.length)
     }
   }
-  return result
+  return { categories, lengths }
 }

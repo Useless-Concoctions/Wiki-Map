@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import L from 'leaflet'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Tooltip, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 
 import { Coords, MapBounds, WikiGeoResult } from '@/types'
@@ -14,7 +14,6 @@ import { EMOJI_FILTERS, articleMatchesFilter } from '@/lib/emojiFilters'
 import ArticlePanel from './ArticlePanel'
 import CategoryFilter from './CategoryFilter'
 
-import { Radius } from '@/types'
 
 const createArticleIcon = (isSelected: boolean) =>
   new L.DivIcon({
@@ -71,8 +70,10 @@ function getMaxPinsForZoom(zoom: number): number {
   if (zoom >= 15) return 50
   if (zoom >= 14) return 40
   if (zoom >= 13) return 30
-  if (zoom >= 12) return 20
-  return 10 // zoomed way out = still show some density
+  if (zoom >= 12) return 25
+  if (zoom >= 11) return 20
+  if (zoom >= 10) return 15
+  return 10
 }
 
 // Report visible map bounds and zoom when user pans/zooms so we load articles for what's on screen
@@ -171,8 +172,8 @@ export default function MapInner() {
     setViewportZoom(zoom)
   }, [])
   const bounds = viewportBounds ?? DEFAULT_BOUNDS
-  const { articles, loading: wikiLoading } = useWikiArticles(bounds)
-  const { categoriesByPageId } = useArticleCategories(articles)
+  const { articles, loading: wikiLoading } = useWikiArticles(bounds, viewportZoom)
+  const { categoriesByPageId, lengthByPageId } = useArticleCategories(articles)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [selectedArticle, setSelectedArticle] = useState<WikiGeoResult | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -214,28 +215,47 @@ export default function MapInner() {
   const maxPins = getMaxPinsForZoom(viewportZoom)
   
   const displayArticles = useMemo(() => {
-    // If Wikipedia doesn't provide a distance, calculate a rough one from the current map center
-    // for consistent sorting (closest to center first).
     const centerLat = (bounds.north + bounds.south) / 2
     const centerLon = (bounds.east + bounds.west) / 2
+    const importanceWeight = Math.max(0, (15 - viewportZoom) / 10)
 
-    const list = [...categoryFiltered].sort((a, b) => {
-      const distA = a.dist ?? (Math.pow(a.lat - centerLat, 2) + Math.pow(a.lon - centerLon, 2))
-      const distB = b.dist ?? (Math.pow(b.lat - centerLat, 2) + Math.pow(b.lon - centerLon, 2))
-      return distA - distB
-    })
-    
-    const sliced = list.slice(0, maxPins)
-    
-    // Always include selected article if it exists and is filtered in
-    if (selectedArticle && !sliced.some(a => a.pageid === selectedArticle.pageid)) {
-      const isFiltered = categoryFiltered.some(a => a.pageid === selectedArticle.pageid)
-      if (isFiltered) {
-        sliced.push(selectedArticle)
-      }
+    const score = (a: WikiGeoResult) => {
+      const dist = a.dist ?? ((a.lat - centerLat) ** 2 + (a.lon - centerLon) ** 2) * 1e10
+      const len = lengthByPageId.get(a.pageid) ?? 1000
+      return dist / Math.pow(len, importanceWeight)
     }
-    return sliced
-  }, [categoryFiltered, maxPins, selectedArticle, bounds])
+
+    let selected: WikiGeoResult[]
+
+    if (viewportZoom < 14) {
+      // Grid-based selection: divide the viewport into cells, pick the best
+      // article per cell. Finer grid = dense areas naturally get more pins.
+      const GRID = 7
+      const latStep = (bounds.north - bounds.south) / GRID
+      const lonStep = (bounds.east - bounds.west) / GRID
+      const grid = new Map<string, WikiGeoResult>()
+
+      for (const a of categoryFiltered) {
+        const row = Math.min(GRID - 1, Math.floor((bounds.north - a.lat) / latStep))
+        const col = Math.min(GRID - 1, Math.floor((a.lon - bounds.west) / lonStep))
+        const cellKey = `${row},${col}`
+        const existing = grid.get(cellKey)
+        if (!existing || score(a) < score(existing)) grid.set(cellKey, a)
+      }
+
+      selected = [...grid.values()]
+    } else {
+      selected = [...categoryFiltered].sort((a, b) => score(a) - score(b)).slice(0, maxPins)
+    }
+
+    // Always include selected article if it exists and is filtered in
+    if (selectedArticle && !selected.some(a => a.pageid === selectedArticle.pageid)) {
+      const isFiltered = categoryFiltered.some(a => a.pageid === selectedArticle.pageid)
+      if (isFiltered) selected.push(selectedArticle)
+    }
+
+    return selected
+  }, [categoryFiltered, maxPins, selectedArticle, bounds, lengthByPageId, viewportZoom])
 
   const articleToShow = selectedArticle
 
@@ -308,12 +328,13 @@ export default function MapInner() {
             icon={createArticleIcon(selectedArticle?.pageid === a.pageid)}
             zIndexOffset={selectedArticle?.pageid === a.pageid ? 1000 : 500}
             eventHandlers={{
-              click: () => {
-                console.log('Pin clicked:', a.title, a.pageid)
-                setSelectedArticle(a)
-              },
+              click: () => setSelectedArticle(a),
             }}
-          />
+          >
+            <Tooltip direction="top" offset={[0, -30]} opacity={1}>
+              <span className="text-xs font-semibold">{a.title}</span>
+            </Tooltip>
+          </Marker>
         ))}
 
         <MapController coords={coords} />
@@ -322,7 +343,7 @@ export default function MapInner() {
       <div className="absolute top-6 left-6 right-6 z-[1010] flex items-center gap-4 pointer-events-none transition-all duration-300">
         <form 
           onSubmit={handleSearchSubmit}
-          className="flex items-center bg-white shadow-md border border-slate-200 rounded-full overflow-hidden pointer-events-auto shrink-0 h-10"
+          className="flex items-center bg-white shadow-md border border-slate-200 rounded-full overflow-hidden pointer-events-auto shrink-0 h-10 w-[312px]"
         >
           <div className="px-4 h-full flex items-center gap-2 border-r border-slate-100 bg-blue-600 text-white shrink-0">
             {isSearching ? (
@@ -331,7 +352,7 @@ export default function MapInner() {
               <span className="text-base font-black italic select-none">W</span>
             )}
           </div>
-          <div className="flex items-center px-4 w-60 h-full">
+          <div className="flex items-center px-4 flex-1 h-full">
             <input
               type="text"
               placeholder="Search Wikipedia..."

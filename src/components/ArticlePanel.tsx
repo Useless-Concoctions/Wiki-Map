@@ -76,9 +76,6 @@ export default function ArticlePanel({ article, onClose }: Props) {
           <h2 className="text-2xl font-bold text-slate-900 leading-tight">
             {article?.title}
           </h2>
-          <p className="text-slate-500 text-sm mt-1 tracking-tight font-semibold">
-            Wikipedia Article
-          </p>
         </div>
 
         {loading ? (

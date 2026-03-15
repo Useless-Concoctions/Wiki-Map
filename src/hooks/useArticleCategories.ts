@@ -93,35 +93,44 @@ function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
 /** Two categories are considered duplicates if 60%+ of their meaningful words overlap. */
 const DUPLICATE_THRESHOLD = 0.6
 
+type CacheEntry = { categories: Map<number, string[]>; lengths: Map<number, number> }
+
 export function useArticleCategories(articles: WikiGeoResult[]) {
   const [categoriesByPageId, setCategoriesByPageId] = useState<Map<number, string[]>>(new Map())
+  const [lengthByPageId, setLengthByPageId] = useState<Map<number, number>>(new Map())
   const [loading, setLoading] = useState(false)
-  const cacheRef = useRef<Map<string, Map<number, string[]>>>(new Map())
+  const cacheRef = useRef<Map<string, CacheEntry>>(new Map())
 
   useEffect(() => {
     if (articles.length === 0) {
       setCategoriesByPageId(new Map())
+      setLengthByPageId(new Map())
       return
     }
 
     const key = [...articles.map((a) => a.pageid)].sort((a, b) => a - b).join(',')
     const cached = cacheRef.current.get(key)
     if (cached) {
-      setCategoriesByPageId(cached)
+      setCategoriesByPageId(cached.categories)
+      setLengthByPageId(cached.lengths)
       return
     }
 
     let cancelled = false
     setLoading(true)
     fetchCategoriesForPages(articles.map((a) => a.pageid))
-      .then((map) => {
+      .then(({ categories, lengths }) => {
         if (!cancelled) {
-          cacheRef.current.set(key, map)
-          setCategoriesByPageId(map)
+          cacheRef.current.set(key, { categories, lengths })
+          setCategoriesByPageId(categories)
+          setLengthByPageId(lengths)
         }
       })
       .catch(() => {
-        if (!cancelled) setCategoriesByPageId(new Map())
+        if (!cancelled) {
+          setCategoriesByPageId(new Map())
+          setLengthByPageId(new Map())
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -157,5 +166,5 @@ export function useArticleCategories(articles: WikiGeoResult[]) {
     }
   }
 
-  return { categoriesByPageId, uniqueCategories, loading }
+  return { categoriesByPageId, lengthByPageId, uniqueCategories, loading }
 }

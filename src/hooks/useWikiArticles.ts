@@ -23,8 +23,10 @@ function snap(n: number): string {
   return (Math.round(n / GRID_SIZE) * GRID_SIZE).toFixed(2)
 }
 
+const CACHE_VERSION = 'v6'
+
 function boundsKey(b: MapBounds): string {
-  return `wiki_cache_${snap(b.south)}|${snap(b.west)}|${snap(b.north)}|${snap(b.east)}`
+  return `wiki_cache_${CACHE_VERSION}_${snap(b.south)}|${snap(b.west)}|${snap(b.north)}|${snap(b.east)}`
 }
 
 function readCache(key: string): CacheEntry | null {
@@ -43,7 +45,7 @@ function writeCache(key: string, articles: WikiGeoResult[]) {
     localStorage.setItem(key, JSON.stringify(entry))
 
     // Evict oldest entries if we're over the limit
-    const keys = Object.keys(localStorage).filter((k) => k.startsWith('wiki_cache_'))
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith(`wiki_cache_${CACHE_VERSION}_`))
     if (keys.length > CACHE_MAX_ENTRIES) {
       const withTime = keys
         .map((k) => {
@@ -58,7 +60,33 @@ function writeCache(key: string, articles: WikiGeoResult[]) {
   }
 }
 
-export function useWikiArticles(bounds: MapBounds | null) {
+async function fetchSpread(bounds: MapBounds, zoom: number): Promise<WikiGeoResult[]> {
+  if (zoom >= 14) {
+    return fetchArticlesInBounds(bounds.north, bounds.south, bounds.east, bounds.west)
+  }
+
+  // Zoomed out: split into quadrants and fetch each independently so we get
+  // geographic spread instead of 150 articles all clustered around the center.
+  const midLat = (bounds.north + bounds.south) / 2
+  const midLon = (bounds.east + bounds.west) / 2
+  const quadrants: MapBounds[] = [
+    { north: bounds.north, south: midLat, east: midLon, west: bounds.west },
+    { north: bounds.north, south: midLat, east: bounds.east, west: midLon },
+    { north: midLat, south: bounds.south, east: midLon, west: bounds.west },
+    { north: midLat, south: bounds.south, east: bounds.east, west: midLon },
+  ]
+  const results = await Promise.all(
+    quadrants.map((q) => fetchArticlesInBounds(q.north, q.south, q.east, q.west))
+  )
+  const seen = new Set<number>()
+  return results.flat().filter((a) => {
+    if (seen.has(a.pageid)) return false
+    seen.add(a.pageid)
+    return true
+  })
+}
+
+export function useWikiArticles(bounds: MapBounds | null, zoom: number) {
   const [articles, setArticles] = useState<WikiGeoResult[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -83,12 +111,7 @@ export function useWikiArticles(bounds: MapBounds | null) {
       setLoading(true)
       setError(null)
       try {
-        const results = await fetchArticlesInBounds(
-          bounds.north,
-          bounds.south,
-          bounds.east,
-          bounds.west
-        )
+        const results = await fetchSpread(bounds, zoom)
         setArticles(results)
         writeCache(key, results)
       } catch (e) {
@@ -103,7 +126,7 @@ export function useWikiArticles(bounds: MapBounds | null) {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [bounds?.north, bounds?.south, bounds?.east, bounds?.west])
+  }, [bounds?.north, bounds?.south, bounds?.east, bounds?.west, zoom])
 
   return { articles, loading, error }
 }
